@@ -23,13 +23,13 @@ fs.mkdir(sampleDir, (error) => {
         console.error("Error reading file:", error);
         return;
       }
-      console.log("File content:", data);
+      console.log("Callback:", data);
     });
     // 2. Promise style
     fs.promises
       .readFile(filePath, "utf8")
       .then((data) => {
-        console.log("File content (Promise):", data);
+        console.log("Promise:", data);
       })
       .catch((error) => {
         console.error("Error reading file (Promise):", error);
@@ -39,7 +39,7 @@ fs.mkdir(sampleDir, (error) => {
     async function readFileAsync() {
       try {
         const data = await fs.promises.readFile(filePath, "utf8");
-        console.log("File content (Async/Await):", data);
+        console.log("Async/Await:", data);
       } catch (error) {
         console.error("Error reading file (Async/Await):", error);
       }
