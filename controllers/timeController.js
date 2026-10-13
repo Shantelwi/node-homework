@@ -10,7 +10,7 @@ function echoBody(req, res) {
   });
 }
 
-modules.exports = {
+module.exports = {
   getTime,
   echoBody,
 };

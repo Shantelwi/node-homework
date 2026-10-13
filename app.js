@@ -18,12 +18,6 @@ app.post("/testpost", (req, res) => {
   });
 });
 
-app.all("/{*splat}", (req, res) => {
-  res.status(404).json({
-    message: `No route found for ${req.method} ${req.path}`,
-  });
-});
-
 const port = process.env.PORT || 3000;
 
 const server = app.listen(port, (error) => {
