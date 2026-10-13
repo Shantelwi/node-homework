@@ -13,10 +13,9 @@ app.get("/", (req, res) => {
 });
 
 app.post("/testpost", (req, res) => {
-  (res.status(200),
-    json({
+  res.status(200).json({
       message: "POST route works",
-    }));
+    });
 });
 
 const port = process.env.PORT || 3000;
