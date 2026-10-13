@@ -39,20 +39,28 @@ const server = http.createServer((req, res) => {
     });
 
     req.on("end", () => {
-      const parsedBody = JSON.parse(body);
-
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(
-        JSON.stringify({
-          weReceived: parsedBody,
-        }),
-      );
+      try {
+        const parsedBody = JSON.parse(body);
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            weReceived: parsedBody,
+          }),
+        );
+      } catch (error) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            message: "Invalid JSON.",
+          }),
+        );
+      }
     });
   } else {
     res.writeHead(404, { "Content-Type": "application/json" });
     res.end(
       JSON.stringify({
-        message: "That route is not available",
+        message: "That route is not available.",
       }),
     );
   }
