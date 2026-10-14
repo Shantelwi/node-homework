@@ -28,7 +28,7 @@ const port = process.env.PORT || 3000;
 
 const server = app.listen(port, (error) => {
   if (error) {
-    if (error.code === "EADDINUSE") {
+    if (error.code === "EADDRINUSE") {
       console.error(`Port ${port} is already in use.`);
     } else {
       console.error("Server startup error:", error);
