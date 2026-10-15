@@ -6,7 +6,7 @@ const userRouter = require("./routes/userRoutes");
 
 const notFound = require("./week-3-middleware/not-found");
 
-const errorHandler = require("./week-3-middleware/error-handler");
+const errorHandler = require("./middleware/error-handler");
 
 const app = express();
 
