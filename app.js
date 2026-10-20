@@ -4,7 +4,7 @@ const timeRouter = require("./routes/timeRoutes");
 
 const userRouter = require("./routes/userRoutes");
 
-const notFound = require("./week-3-middleware/not-found");
+const notFound = require("./middleware/not-found");
 
 const errorHandler = require("./middleware/error-handler");
 

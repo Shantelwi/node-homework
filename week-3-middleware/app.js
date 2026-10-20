@@ -11,7 +11,6 @@ const { randomUUID } = require("crypto");
 
 const imagePath = path.join(__dirname, "public", "images");
 
-app.use(express.json());
 
 app.use((req, res, next) => {
   req.requestId = randomUUID();
@@ -24,16 +23,11 @@ app.use((req, res, next) => {
   next();
 })
 
-app.use("/", dogsRouter);// Do not remove this line
+app.use(express.json());
 
 app.use("/images", express.static(imagePath))
 
-app.post("/adopt", (req, res) => {
-  res.status(200).json({
-    body: req.body
-  });
-})
-
+app.use("/", dogsRouter);// Do not remove this line
 
 app.use((req, res) => {
   res.status(404).json({
@@ -47,7 +41,6 @@ app.use((err,req, res, next) => {
     error: "Internal Server Error",
     requestId: req.requestId
   })
-  next();
 })
 
 if (require.main === module) {
