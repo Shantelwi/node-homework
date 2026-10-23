@@ -1,5 +1,6 @@
 const crypto = require("crypto");
 const util = require("util");
+const { userSchema } = require("../validation/userSchema");
 
 const scrypt = util.promisify(crypto.scrypt);
 
@@ -18,11 +19,14 @@ async function comparePassword(inputPassword, storedHash) {
 
 global.users = [];
 async function register(req, res) {
+  if (!req.body) req.body = {};
+  const { error, value } = userSchema.validate(req.body, { abortEarly: false });
+  if (error) return res.status(400).json({ message: error.message});
+  const { name, email, password } = value;
   const hashedPassword = await hashPassword(password);
-  const { name, email, password } = req.body;
   const newUser = {
-    name,
-    email,
+    name: value.name,
+    email: value.email,
     hashedPassword,
   };
 
@@ -37,16 +41,17 @@ async function register(req, res) {
 }
 
 async function logon(req, res) {
-    const goodCredentials = await comparePassword(password, user.hashedPassword);
-    const { email, password } = req.body;
-
+  const { email, password } = req.body;
+  
   global.user_id = null;
-
+  
   const user = global.users.find((user) => {
-    return email === user.email && password === user.password;
+    return email === user.email;
   });
 
-  if (user) {
+  const goodCredentials = user && await comparePassword(password, user.hashedPassword);
+
+  if (goodCredentials) {
     global.user_id = user;
 
     res.status(200).json({
