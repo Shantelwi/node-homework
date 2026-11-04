@@ -1,14 +1,7 @@
 const { taskSchema, patchTaskSchema } = require("../validation/taskSchema");
+const pool = require ("../db/pg-pool");
 
-const taskCounter = (() => {
-  let lastTaskNumber = 0;
-  return () => {
-    lastTaskNumber += 1;
-    return lastTaskNumber;
-  };
-})();
-
-function create(req, res) {
+async function create(req, res) {
   //checks authentication
   if (!global.user_id) {
     return res.status(401).json({
@@ -22,27 +15,19 @@ function create(req, res) {
 
   if (error) return res.status(400).json({message: error.message});
 
-  //Create the task
-  const task = {
-    id: taskCounter(),
-    userId: global.user_id.email,
-    ...value,
-  };
-
-  //sanitized the task
-  const sanitizedTask = { ...task };
-  delete sanitizedTask.userId;
-
-  //store the task
-  global.tasks.push(task);
+  //create and store task
+  const result = await pool.query(
+    `INSERT INTO tasks (title, is_completed, user_id)
+    VALUES ($1, $2, $3) RETURNING id, title, is_completed`,
+    [value.title, value.isCompleted, global.user_id]);
+  
+  const task = result.rows[0];
 
   //send the response
-  res.status(201).json({
-    ...sanitizedTask,
-  });
+  res.status(201).json(task);
 }
 
-function index(req, res) {
+async function index(req, res) {
   //checks authentication
   if (!global.user_id) {
     return res.status(401).json({
@@ -50,30 +35,22 @@ function index(req, res) {
     });
   }
 
-  //filters tasks belonging to the logged in user
-  const userTasks = global.tasks.filter((task) => {
-    return task.userId === global.user_id.email;
-  });
+  const result = await pool.query("SELECT id, title, is_completed FROM tasks WHERE user_id = $1",
+    [global.user_id]
+  )
 
-  //returns a response when user has no tasks
-  if (userTasks.length === 0) {
+  const tasks = result.rows;
+
+  if (tasks.length === 0) {
     return res.status(404).json({
-        message: "No tasks Found"
+      message: "Task not found",
     });
   }
-
-  //removes userId from each task
-  const sanitizedTasks = userTasks.map((task) => {
-    const sanitizedTask = { ...task };
-    delete sanitizedTask.userId;
-    return sanitizedTask;
-  });
-
-  //returns the sanitized task array with status 200
-  res.status(200).json(sanitizedTasks);
+  //returns the task array with status 200
+  res.status(200).json(tasks);
 }
 
-function show(req, res) {
+async function show(req, res) {
   //checks authentication
   if (!global.user_id) {
     return res.status(401).json({
@@ -90,9 +67,12 @@ function show(req, res) {
   }
 
   //finds the task belonging to the logged in user
-  const task = global.tasks.find((task) => {
-    return task.id === taskId && task.userId === global.user_id.email;
-  });
+  const result = await pool.query(
+    "SELECT id, title, is_completed FROM  tasks WHERE id = $1 AND user_id = $2",
+    [taskId, global.user_id]
+  );
+
+  const task = result.rows[0];
 
   //handles missing task
   if (!task) {
@@ -101,13 +81,10 @@ function show(req, res) {
     });
   }
 
-  //remove userId if task is found
-  const sanitizedTask = { ...task };
-  delete sanitizedTask.userId;
-  return res.status(200).json(sanitizedTask); //return the sanitized task with status 200
+  res.status(200).json(task)
 }
 
-function update(req, res) {
+async function update(req, res) {
   //checks authentication
   if (!global.user_id) {
     return res.status(401).json({
@@ -126,28 +103,29 @@ function update(req, res) {
     });
   }
 
-  //finds the task belonging to the logged in user
-  const task = global.tasks.find((task) => {
-    return task.id === taskId && task.userId === global.user_id.email;
-  });
+//finds the task belonging to the logged in user and which fields the user is allowed to update
+  let keys = Object.keys(value);
+  keys = keys.map((key) => key === "isCompleted" ? "is_completed" : key);
+  const setClauses = keys.map((key, i) => `${key} = $${i + 1}`).join(", ");
+  const idParm = `$${keys.length + 1}`;
+  const userParm = `$${keys.length + 2}`;
+  const result = await pool.query(`UPDATE tasks SET ${setClauses}
+        WHERE id = ${idParm} AND user_id = ${userParm} RETURNING id, title, is_completed`,
+      [...Object.values(value), taskId, global.user_id]);
+
+  const updatedTask = result.rows[0];
 
   //handles missing task
-  if (!task) {
+  if (!updatedTask) {
     return res.status(404).json({
       message: "Task not found",
     });
   }
 
-  //which fields the user is allowed to update
-  Object.assign(task, value);
-
-  //remove userId if task is found
-  const sanitizedTask = { ...task };
-  delete sanitizedTask.userId;
-  return res.status(200).json(sanitizedTask); //return the sanitized task with status 200
+  return res.status(200).json(updatedTask); //return the  updatedTask with status 200
 }
 
-function deleteTask(req, res) {
+async function deleteTask(req, res) {
     //checks authentication
   if (!global.user_id) {
     return res.status(401).json({
@@ -163,23 +141,20 @@ function deleteTask(req, res) {
     });
   }
 
-  //find the task belonging to the logged in user and also remove task from global.tasks
-  const task = global.tasks.findIndex((task) => {
-    return task.id === taskId && task.userId === global.user_id.email;
-  });
+  //find the task belonging to the logged in user and also remove task from deletedTask
+  const result = await pool.query(` DELETE FROM tasks
+  WHERE id = $1 AND user_id = $2  RETURNING id, title, is_completed`, [taskId, global.user_id]);
+
+  const deletedTask = result.rows[0];
 
   //handles missing task
-  if (task === -1) {
+  if (!deletedTask) {
     return res.status(404).json({
       message: "Task not found",
     });
   }
-  
-  
-  const sanitizedTask = { ...global.tasks[task] };
-  delete sanitizedTask.userId;
-  global.tasks.splice(task, 1);
-  return res.status(200).json(sanitizedTask); //return the sanitized task with status 200
+
+  return res.status(200).json(deletedTask); //return the  deletedTask with status 200
 }
 
 module.exports = {
