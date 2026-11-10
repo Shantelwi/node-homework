@@ -1,8 +1,7 @@
 const crypto = require("crypto");
 const util = require("util");
 const { userSchema } = require("../validation/userSchema");
-
-const pool = require("../db/pg-pool");
+const prisma = require("../db/prisma");
 
 const scrypt = util.promisify(crypto.scrypt);
 
@@ -27,15 +26,19 @@ async function register(req, res, next) {
   const hashedPassword = await hashPassword(password);
 
   try {
-    const newUser = await pool.query(" INSERT INTO users (name, email, hashed_password) VALUES ($1, $2, $3) RETURNING id ", [name, email, hashedPassword]);
-    global.user_id = newUser.rows[0].id;
+    const newUser = await prisma.user.create({ 
+      data: {
+        name,
+        email,
+        hashedPassword
+      }
+     });
+    global.user_id = newUser.id;
     
   } catch (error) {
-    if (error.code === "23505") return res.status(400).json({message: "Conflict"});
-    next(error);
+    if (error.code === "P2002") return res.status(400).json({message: "Conflict"});
+    return next(error);
   }
-  
-    
 
   res.status(201).json({
     name: name,
@@ -44,18 +47,18 @@ async function register(req, res, next) {
 }
 
 async function logon(req, res) {
-  const { email, password } = req.body;
+  let { email, password } = req.body;
+
+  email = email.toLowerCase();
   
   global.user_id = null;
 
-  const result = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
-
-  const user = result.rows[0];
+  const user = await prisma.user.findUnique({ where: { email } });
   
-  const goodCredentials = user && await comparePassword(password, result.rows[0].hashed_password);
+  const goodCredentials = user && await comparePassword(password, user.hashedPassword);
 
   if (goodCredentials) {
-    global.user_id = result.rows[0].id;
+    global.user_id = user.id;
 
     res.status(200).json({
       name: user.name,
