@@ -111,12 +111,6 @@ async function index(req, res) {
     hasNext: page * limit < totalTasks,
     hasPrev: page > 1,
   };
-
-  if (tasks.length === 0) {
-    return res.status(404).json({
-      message: "Task not found",
-    });
-  }
   //returns the task array with status 200
   res.status(200).json({ tasks, pagination });
 }
