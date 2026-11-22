@@ -1,5 +1,6 @@
 const { taskSchema, patchTaskSchema } = require("../validation/taskSchema");
 const prisma = require("../db/prisma");
+const Joi = require("joi");
 
 async function create(req, res) {
   //checks authentication
@@ -21,7 +22,7 @@ async function create(req, res) {
       title: value.title,
       isCompleted: value.isCompleted,
       userId: global.user_id,
-      priority: value.priority
+      priority: value.priority,
     },
     select: {
       id: true,
@@ -55,12 +56,12 @@ async function index(req, res) {
   const skip = (page - 1) * limit;
 
   //Build where clause with optional search filter
-  const whereClause = {userId: global.user_id};
+  const whereClause = { userId: global.user_id };
 
   if (req.query.find) {
     whereClause.title = {
       contains: req.query.find,
-      mode: "insensitive"
+      mode: "insensitive",
     };
   }
 
@@ -69,7 +70,7 @@ async function index(req, res) {
     const sortBy = query.sortBy || "createdAt";
     const sortDirection = query.sortDirection === "asc" ? "asc" : "desc";
 
-    if(validSortFields.includes(sortBy)) {
+    if (validSortFields.includes(sortBy)) {
       return { [sortBy]: sortDirection };
     }
     return { createdAt: "desc" };
@@ -93,12 +94,12 @@ async function index(req, res) {
       },
     },
     skip,
-    take: limit
+    take: limit,
   });
 
   //Get total count for pagination metadata
   const totalTasks = await prisma.task.count({
-    where: whereClause
+    where: whereClause,
   });
 
   //Build pagination object with complete metadata
@@ -117,7 +118,7 @@ async function index(req, res) {
     });
   }
   //returns the task array with status 200
-  res.status(200).json({tasks, pagination});
+  res.status(200).json({ tasks, pagination });
 }
 
 async function show(req, res) {
@@ -147,6 +148,12 @@ async function show(req, res) {
       title: true,
       isCompleted: true,
       priority: true,
+      User: {
+        select: {
+          name: true,
+          email: true,
+        },
+      }
     },
   });
 
@@ -191,7 +198,7 @@ async function update(req, res) {
         id: true,
         title: true,
         isCompleted: true,
-        priority: true
+        priority: true,
       },
     });
 
@@ -209,29 +216,55 @@ async function update(req, res) {
 async function bulkCreate(req, res, next) {
   if (!global.user_id) {
     return res.status(401).json({
-      message: "Unauthorized"
+      message: "Unauthorized",
     });
   }
 
   const tasks = req.body?.tasks;
 
-  if (!Array.isArray(tasks)){
+  if (!Array.isArray(tasks)) {
     return res.status(400).json({
-      message: "Tasks should be an array"
+      message: "Tasks should be an array",
     });
   }
 
   if (tasks.length === 0) {
     return res.status(400).json({
-      message: "Tasks array cannot be empty"
+      message: "Tasks array cannot be empty",
     });
   }
 
-  const preparedTasks = tasks.map((task) => ({
+  const bulkTaskSchema = Joi.array().items(taskSchema).min(1);
+
+  const { error, value } = bulkTaskSchema.validate(tasks, {
+    abortEarly: false,
+  });
+
+  if (error) {
+    return res.status(400).json({
+      message: "Validation failed",
+      details: error.details,
+    });
+  }
+
+  const preparedTasks = value.map((task) => ({
     title: task.title,
-    priority: tasks.priority,
-    userId: global.user_id
+    priority: task.priority,
+    isCompleted: task.isCompleted,
+    userId: global.user_id,
   }));
+
+  try {
+    const result = await prisma.task.createMany({
+      data: preparedTasks,
+    });
+    return res.status(201).json({
+      tasksCreated: result.count,
+      totalRequested: preparedTasks.length
+    });
+  } catch (error) {
+    return next(error);
+  }
 }
 
 async function deleteTask(req, res) {
@@ -261,7 +294,7 @@ async function deleteTask(req, res) {
         id: true,
         title: true,
         isCompleted: true,
-        priority: true
+        priority: true,
       },
     });
     return res.status(200).json(deletedTask); //return the  deletedTask with status 200
@@ -280,6 +313,7 @@ module.exports = {
   create,
   index,
   show,
+  bulkCreate,
   update,
   deleteTask,
 };

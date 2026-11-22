@@ -37,7 +37,7 @@ async function register(req, res, next) {
           hashedPassword,
         },
       });
-      const welcomeTasks = await tx.task.createMany({
+      await tx.task.createMany({
         data: [
           {
             title: "Complete your profile",
@@ -45,7 +45,7 @@ async function register(req, res, next) {
             priority: "medium",
           },
           {
-            title: "Create your first task",
+            title: "Add your first task",
             userId: user.id,
             priority: "high",
           },
@@ -56,8 +56,17 @@ async function register(req, res, next) {
           },
         ],
       });
+      const welcomeTasks = await tx.task.findMany({
+        where: {
+          userId: user.id
+        },
+      })
       return { user, welcomeTasks };
     });
+
+    console.log("Welcome tasks:", result.welcomeTasks);
+    console.log("Is array:", Array.isArray(result.welcomeTasks));
+    
     global.user_id = result.user.id;
     res.status(201).json({
       user: {
