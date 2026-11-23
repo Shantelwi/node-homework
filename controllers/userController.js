@@ -3,6 +3,27 @@ const util = require("util");
 const { userSchema } = require("../validation/userSchema");
 const prisma = require("../db/prisma");
 
+const { randomUUID } = require("crypto");
+
+const jwt = require("jsonwebtoken");
+
+const cookieFlags = (req) => {
+  return {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "Strict",
+  };
+};
+
+const setJwtCookie = ( req, res, user ) => {
+  //Sign JWT
+  const payload = { id: user.id, csrfToken: randomUUID() };
+  const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "1h" }); //1hour expiration
+  //Set cookie. Not that the cookie flags have to be different in production and in test.
+  res.cookie("jwt", token, {...cookieFlags(req), maxAge: 3600000});
+  return payload.csrfToken; //This is needed in the body returned by logon() or register()
+};
+
 const scrypt = util.promisify(crypto.scrypt);
 
 async function hashPassword(password) {
@@ -64,10 +85,8 @@ async function register(req, res, next) {
       return { user, welcomeTasks };
     });
 
-    console.log("Welcome tasks:", result.welcomeTasks);
-    console.log("Is array:", Array.isArray(result.welcomeTasks));
-    
-    global.user_id = result.user.id;
+    const csrfToken = setJwtCookie(req, res, result.user);
+
     res.status(201).json({
       user: {
         id: result.user.id,
@@ -76,6 +95,7 @@ async function register(req, res, next) {
       },
       welcomeTasks: result.welcomeTasks,
       transactionStatus: "success",
+      csrfToken: csrfToken,
     });
   } catch (error) {
     if (error.code === "P2002")
@@ -89,19 +109,18 @@ async function logon(req, res) {
 
   email = email.toLowerCase();
 
-  global.user_id = null;
-
   const user = await prisma.user.findUnique({ where: { email } });
 
   const goodCredentials =
     user && (await comparePassword(password, user.hashedPassword));
 
   if (goodCredentials) {
-    global.user_id = user.id;
+    const csrfToken = setJwtCookie(req, res, user);
 
     res.status(200).json({
       name: user.name,
       email: user.email,
+      csrfToken: csrfToken,
     });
   } else {
     res.status(401).json({
@@ -149,12 +168,13 @@ async function show(req, res) {
 }
 
 function logoff(req, res) {
-  global.user_id = null;
+  res.clearCookie("jwt", cookieFlags(req));
 
   res.status(200).json({
     message: "Ok",
   });
 }
+
 
 module.exports = {
   register,

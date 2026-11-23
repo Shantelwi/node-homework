@@ -8,7 +8,7 @@ const notFound = require("./middleware/not-found");
 
 const errorHandler = require("./middleware/error-handler");
 
-const authMiddleware = require("./middleware/auth");
+const jwtMiddleware = require("./middleware/jwtMiddleware");
 
 const taskRouter = require("./routes/taskRoutes");
 
@@ -18,21 +18,38 @@ const app = express();
 
 const prisma = require("./db/prisma");
 
-global.user_id = null;
+const cookieParser = require("cookie-parser");
 
-global.users = [];
+app.set("trust proxy", 1);
 
-global.tasks = [];
+const helmet = require("helmet");
+
+const { xss } = require("express-xss-sanitizer");
+
+const rateLimiter = require("express-rate-limit");
+
+app.use(
+  rateLimiter({
+    windowMs: 15 * 60 * 1000, //15 minutes
+    max: 100, //limit each IP to 100 requests per windowMs
+  }),
+);
+
+app.use(helmet());
+
+app.use(cookieParser());
 
 app.use(express.json());
+
+app.use(xss());
 
 app.use("/api/users", userRouter);
 
 app.use("/api", timeRouter);
 
-app.use("/api/tasks", authMiddleware, taskRouter);
+app.use("/api/tasks", taskRouter);
 
-app.use("/api/analytics", authMiddleware,analyticsRouter);
+app.use("/api/analytics", jwtMiddleware, analyticsRouter);
 
 app.get("/", (req, res) => {
   res.send("Hello, World!");
@@ -47,9 +64,11 @@ app.post("/testpost", (req, res) => {
 app.get("/health", async (req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
-    res.json({status: "ok", db: "connected"});
+    res.json({ status: "ok", db: "connected" });
   } catch (err) {
-    res.status(500).json({ status: 'error', db: 'not connected', error: err.message });
+    res
+      .status(500)
+      .json({ status: "error", db: "not connected", error: err.message });
   }
 });
 
