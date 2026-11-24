@@ -3,12 +3,6 @@ const prisma = require("../db/prisma");
 const Joi = require("joi");
 
 async function create(req, res) {
-  //checks authentication
-  if (!global.user_id) {
-    return res.status(401).json({
-      message: "Unauthorized",
-    });
-  }
   if (!req.body) req.body = {};
 
   //validate req.body and validation error
@@ -21,7 +15,7 @@ async function create(req, res) {
     data: {
       title: value.title,
       isCompleted: value.isCompleted,
-      userId: global.user_id,
+      userId: req.user.id,
       priority: value.priority,
     },
     select: {
@@ -44,19 +38,12 @@ async function create(req, res) {
 }
 
 async function index(req, res) {
-  //checks authentication
-  if (!global.user_id) {
-    return res.status(401).json({
-      message: "Unauthorized",
-    });
-  }
-
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
   const skip = (page - 1) * limit;
 
   //Build where clause with optional search filter
-  const whereClause = { userId: global.user_id };
+  const whereClause = { userId: req.user.id };
 
   if (req.query.find) {
     whereClause.title = {
@@ -116,13 +103,6 @@ async function index(req, res) {
 }
 
 async function show(req, res) {
-  //checks authentication
-  if (!global.user_id) {
-    return res.status(401).json({
-      message: "Unauthorized",
-    });
-  }
-
   //validates Id
   const taskId = parseInt(req.params?.id);
   if (!taskId) {
@@ -135,7 +115,7 @@ async function show(req, res) {
   const task = await prisma.task.findUnique({
     where: {
       id: taskId,
-      userId: global.user_id,
+      userId: req.user.id,
     },
     select: {
       id: true,
@@ -162,13 +142,6 @@ async function show(req, res) {
 }
 
 async function update(req, res) {
-  //checks authentication
-  if (!global.user_id) {
-    return res.status(401).json({
-      message: "Unauthorized",
-    });
-  }
-
   //validates Id
   const { error, value } = patchTaskSchema.validate(req.body);
   if (error) return res.status(400).json({ message: error.message });
@@ -185,7 +158,7 @@ async function update(req, res) {
     const updatedTask = await prisma.task.update({
       where: {
         id: taskId,
-        userId: global.user_id,
+        userId: req.user.id,
       },
       data: value,
       select: {
@@ -208,12 +181,6 @@ async function update(req, res) {
 }
 
 async function bulkCreate(req, res, next) {
-  if (!global.user_id) {
-    return res.status(401).json({
-      message: "Unauthorized",
-    });
-  }
-
   const tasks = req.body?.tasks;
 
   if (!Array.isArray(tasks)) {
@@ -245,7 +212,7 @@ async function bulkCreate(req, res, next) {
     title: task.title,
     priority: task.priority,
     isCompleted: task.isCompleted,
-    userId: global.user_id,
+    userId: req.user.id,
   }));
 
   try {
@@ -262,13 +229,6 @@ async function bulkCreate(req, res, next) {
 }
 
 async function deleteTask(req, res) {
-  //checks authentication
-  if (!global.user_id) {
-    return res.status(401).json({
-      message: "Unauthorized",
-    });
-  }
-
   //validates id
   const taskId = parseInt(req.params?.id);
   if (!taskId) {
@@ -282,7 +242,7 @@ async function deleteTask(req, res) {
     const deletedTask = await prisma.task.delete({
       where: {
         id: taskId,
-        userId: global.user_id,
+        userId: req.user.id,
       },
       select: {
         id: true,
